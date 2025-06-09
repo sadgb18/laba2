@@ -3,14 +3,18 @@ package com.example.metro;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -34,6 +38,13 @@ public class GUI extends Application {
     private List<Integer> shortestRoute = new ArrayList<>();
     private double stationCount;
 
+    private static final double STATION_RADIUS = 8;
+    private static final double HIGHLIGHT_RADIUS = 12;
+    private static final double LINE_WIDTH = 4;
+    private static final double HIGHLIGHT_WIDTH = 8;
+    private static final Font STATION_FONT = Font.font("Segoe UI", FontWeight.MEDIUM, 14);
+    private static final Font ROUTE_INFO_FONT = Font.font("Segoe UI", FontWeight.BOLD, 16);
+
     private void renderConnections(Group root) throws SQLException {
         ResultSet connections = this.database.getRoutes();
         while (connections.next()) {
@@ -44,7 +55,8 @@ public class GUI extends Application {
                 connections.getInt(4)
             );
             connection.setStroke(Color.valueOf(connections.getString(5)));
-            connection.setStrokeWidth(5);
+            connection.setStrokeWidth(LINE_WIDTH);
+            connection.setOpacity(0.8);
             root.getChildren().add(connection);
         }
     }
@@ -52,36 +64,80 @@ public class GUI extends Application {
     private void renderStations(Group root) throws SQLException {
         ResultSet stations = this.database.getAllStations();
         while (stations.next()) {
+            // Создаем внешний круг (обводка)
+            Circle stationBorder = new Circle(
+                stations.getInt("XCoordinate"),
+                stations.getInt("YCoordinate"), 
+                STATION_RADIUS + 2
+            );
+            stationBorder.setFill(Color.WHITE);
+            stationBorder.setEffect(new DropShadow(4, Color.GRAY));
+
+            // Создаем внутренний круг (станция)
             Circle stationPoint = new Circle(
                 stations.getInt("XCoordinate"),
                 stations.getInt("YCoordinate"), 
-                10
+                STATION_RADIUS
             );
             stationPoint.setFill(Color.BLACK);
-            stationPoint.setStroke(Color.WHITE);
-            stationPoint.setStrokeWidth(5);
 
             Text stationName = new Text(
                 stations.getInt("XCoordinate") - 25,
-                stations.getInt("YCoordinate") - 30,
+                stations.getInt("YCoordinate") - 20,
                 stations.getString("StationName")
             );
-            stationName.setFont(Font.font("Helvetica", FontWeight.BOLD, 20));
+            stationName.setFont(STATION_FONT);
+            stationName.setWrappingWidth(100);
+            stationName.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
 
-            root.getChildren().addAll(stationPoint, stationName);
+            root.getChildren().addAll(stationBorder, stationPoint, stationName);
         }
     }
 
-    private void setupInterface(HBox controls, Group mapRoot) throws SQLException {
+    private void setupInterface(VBox controls, Group mapRoot) throws SQLException {
+        controls.setSpacing(20);
+        controls.setPadding(new Insets(20));
+        controls.setStyle("-fx-background-color: white; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 10, 0, 0, 0);");
+        controls.setAlignment(Pos.CENTER);
+
         ResultSet stations = this.database.getAllStations();
         ObservableList<String> stationNames = FXCollections.observableArrayList();
         while (stations.next()) {
             stationNames.add(stations.getString("StationName"));
         }
 
+        Label startLabel = new Label("Начальная станция:");
+        startLabel.setFont(Font.font("Segoe UI", FontWeight.MEDIUM, 14));
         ChoiceBox<String> startStation = new ChoiceBox<>(stationNames);
+        startStation.setStyle("-fx-font-size: 14px; -fx-background-radius: 5;");
+
+        Label endLabel = new Label("Конечная станция:");
+        endLabel.setFont(Font.font("Segoe UI", FontWeight.MEDIUM, 14));
         ChoiceBox<String> endStation = new ChoiceBox<>(stationNames);
+        endStation.setStyle("-fx-font-size: 14px; -fx-background-radius: 5;");
+
         Button findRoute = new Button("Найти маршрут");
+        findRoute.setStyle(
+            "-fx-background-color: #2196F3;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 10 20;" +
+            "-fx-background-radius: 5;"
+        );
+        findRoute.setOnMouseEntered(e -> findRoute.setStyle(
+            "-fx-background-color: #1976D2;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 10 20;" +
+            "-fx-background-radius: 5;"
+        ));
+        findRoute.setOnMouseExited(e -> findRoute.setStyle(
+            "-fx-background-color: #2196F3;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 10 20;" +
+            "-fx-background-radius: 5;"
+        ));
 
         findRoute.setOnMouseClicked(e -> {
             try {
@@ -101,7 +157,11 @@ public class GUI extends Application {
             }
         });
 
-        controls.getChildren().addAll(startStation, endStation, findRoute);
+        controls.getChildren().addAll(
+            startLabel, startStation,
+            endLabel, endStation,
+            findRoute
+        );
     }
 
     private void highlightRoutes(Group root, List<Integer> fastRoute, List<Integer> shortRoute) throws SQLException {
@@ -117,16 +177,18 @@ public class GUI extends Application {
                 if (connections.next()) {
                     Line highlight = new Line(connections.getInt(1), connections.getInt(2), 
                                            connections.getInt(3), connections.getInt(4));
-                    highlight.setStroke(Color.valueOf(connections.getString(5)).brighter());
-                    highlight.setStrokeWidth(20);
+                    highlight.setStroke(Color.valueOf("#2196F3"));
+                    highlight.setStrokeWidth(HIGHLIGHT_WIDTH);
+                    highlight.setOpacity(0.6);
                     root.getChildren().add(highlight);
                 }
             }
             ResultSet station = this.database.getStationCoords(fastRoute.get(i));
             if (station.next()) {
                 Circle highlight = new Circle(station.getInt("XCoordinate"), 
-                                           station.getInt("YCoordinate"), 25);
-                highlight.setFill(Color.BLACK);
+                                           station.getInt("YCoordinate"), HIGHLIGHT_RADIUS);
+                highlight.setFill(Color.valueOf("#2196F3"));
+                highlight.setOpacity(0.6);
                 root.getChildren().add(highlight);
             }
         }
@@ -138,49 +200,82 @@ public class GUI extends Application {
                 if (connections.next()) {
                     Line highlight = new Line(connections.getInt(1), connections.getInt(2), 
                                            connections.getInt(3), connections.getInt(4));
-                    highlight.setStroke(Color.valueOf(connections.getString(5)).darker());
-                    highlight.setStrokeWidth(10);
+                    highlight.setStroke(Color.valueOf("#4CAF50"));
+                    highlight.setStrokeWidth(HIGHLIGHT_WIDTH - 2);
+                    highlight.setOpacity(0.6);
                     root.getChildren().add(highlight);
                 }
             }
             ResultSet station = this.database.getStationCoords(shortRoute.get(i));
             if (station.next()) {
                 Circle highlight = new Circle(station.getInt("XCoordinate"), 
-                                           station.getInt("YCoordinate"), 15);
-                highlight.setFill(Color.GOLD);
+                                           station.getInt("YCoordinate"), HIGHLIGHT_RADIUS - 2);
+                highlight.setFill(Color.valueOf("#4CAF50"));
+                highlight.setOpacity(0.6);
                 root.getChildren().add(highlight);
             }
         }
     }
 
-    private void displayRouteInfo(HBox controls, List<Integer> fastRoute, double time, 
+    private void displayRouteInfo(VBox controls, List<Integer> fastRoute, double time, 
                                 List<Integer> shortRoute, double stations) throws SQLException {
-        Label info = new Label();
-        info.setFont(Font.font("Helvetica", FontWeight.BOLD, 14));
-        info.setTranslateY(info.getTranslateY() + 40);
-        info.setTranslateX(info.getTranslateX() - 850);
+        VBox routeInfo = new VBox(15);
+        routeInfo.setStyle(
+            "-fx-background-color: white;" +
+            "-fx-padding: 15;" +
+            "-fx-background-radius: 5;" +
+            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 0);"
+        );
 
-        StringBuilder text = new StringBuilder("Быстрый маршрут: ");
+        // Информация о быстром маршруте
+        VBox fastRouteInfo = new VBox(8);
+        Label fastRouteLabel = new Label("Самый быстрый маршрут:");
+        fastRouteLabel.setFont(ROUTE_INFO_FONT);
+        fastRouteLabel.setTextFill(Color.valueOf("#2196F3"));
+        
+        StringBuilder fastPath = new StringBuilder();
         for (Integer station : fastRoute) {
             ResultSet rs = this.database.getStationById(station);
             if (rs.next()) {
-                text.append(rs.getString("StationName")).append("->");
+                fastPath.append(rs.getString("StationName")).append(" → ");
             }
         }
-        text.append("Время: ").append(time).append(" мин.\n");
+        Label fastPathLabel = new Label(fastPath.substring(0, fastPath.length() - 3));
+        fastPathLabel.setWrapText(true);
+        fastPathLabel.setPrefWidth(280);
+        fastPathLabel.setStyle("-fx-font-size: 13px;");
+        
+        Label timeLabel = new Label(String.format("Время в пути: %.1f мин.", time));
+        timeLabel.setStyle("-fx-font-weight: bold;");
+        fastRouteInfo.getChildren().addAll(fastRouteLabel, fastPathLabel, timeLabel);
 
-        text.append("Короткий маршрут: ");
+        // Информация о коротком маршруте
+        VBox shortRouteInfo = new VBox(8);
+        Label shortRouteLabel = new Label("Маршрут с минимальным\nколичеством станций:");
+        shortRouteLabel.setFont(ROUTE_INFO_FONT);
+        shortRouteLabel.setTextFill(Color.valueOf("#4CAF50"));
+        
+        StringBuilder shortPath = new StringBuilder();
         for (Integer station : shortRoute) {
             ResultSet rs = this.database.getStationById(station);
             if (rs.next()) {
-                text.append(rs.getString("StationName")).append("->");
+                shortPath.append(rs.getString("StationName")).append(" → ");
             }
         }
-        text.append("Станций: ").append(stations).append("\n");
+        Label shortPathLabel = new Label(shortPath.substring(0, shortPath.length() - 3));
+        shortPathLabel.setWrapText(true);
+        shortPathLabel.setPrefWidth(280);
+        shortPathLabel.setStyle("-fx-font-size: 13px;");
+        
+        Label stationsLabel = new Label(String.format("Количество станций: %.0f", stations));
+        stationsLabel.setStyle("-fx-font-weight: bold;");
+        shortRouteInfo.getChildren().addAll(shortRouteLabel, shortPathLabel, stationsLabel);
 
-        info.setText(text.toString());
-        controls.getChildren().removeIf(item -> item instanceof Label);
-        controls.getChildren().add(info);
+        routeInfo.getChildren().addAll(fastRouteInfo, shortRouteInfo);
+
+        // Обновляем информацию о маршруте
+        controls.getChildren().removeIf(node -> node instanceof VBox && node != controls);
+        controls.getChildren().add(routeInfo);
     }
 
     private void initializeRouteGraph() throws SQLException {
@@ -212,23 +307,43 @@ public class GUI extends Application {
         this.database = new MetroDB("Metro", "postgres", "62426");
         initializeRouteGraph();
 
-        Group root = new Group();
-        Group map = new Group();
-        HBox controls = new HBox();
+        // Создаем корневой контейнер как HBox для размещения карты и контролов по горизонтали
+        HBox root = new HBox(20); // 20 пикселей отступ между картой и контролами
+        root.setStyle("-fx-background-color: white;");
+        root.setPadding(new Insets(20));
 
-        controls.setSpacing(70);
-        controls.setTranslateX(320);
-        controls.setTranslateY(565);
+        // Контейнер для карты
+        Group map = new Group();
+        // Создаем контейнер для карты с отступом слева
+        HBox mapContainer = new HBox(map);
+        mapContainer.setPadding(new Insets(0, 0, 0, 20));
+        mapContainer.setMinWidth(900);
+        mapContainer.setPrefWidth(900);
+
+        // Контейнер для элементов управления
+        VBox controls = new VBox(20);
+        controls.setPrefWidth(350);
+        controls.setMinWidth(350);
+        controls.setMaxWidth(350);
+        controls.setStyle(
+            "-fx-background-color: white;" +
+            "-fx-padding: 20;" +
+            "-fx-background-radius: 10;" +
+            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);"
+        );
 
         renderConnections(map);
         renderStations(map);
         setupInterface(controls, map);
 
-        root.getChildren().addAll(map, controls);
-        Scene scene = new Scene(root, 1024, 700);
-
+        // Добавляем карту и контролы в корневой контейнер
+        root.getChildren().addAll(mapContainer, controls);
+        
+        // Создаем сцену с белым фоном
+        Scene scene = new Scene(root, 1300, 800, Color.WHITE);
+        
         stage.setScene(scene);
-        stage.setTitle("Metro");
+        stage.setTitle("Московский Метрополитен");
         stage.show();
     }
 
